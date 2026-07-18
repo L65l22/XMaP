@@ -7,8 +7,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     body { margin:0; font-family: Arial, Helvetica, sans-serif; }
-    #map { position: absolute; top:120px; bottom:0; left:0; right:0; }
-    #control { position: absolute; left:10px; top:10px; right:10px; height:100px; background: rgba(255,255,255,0.96); padding:8px; border-radius:6px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; z-index:1000; }
+    #map { position: absolute; top:110px; bottom:0; left:0; right:0; }
+    #control { position: absolute; left:10px; top:10px; right:10px; height:86px; background: rgba(255,255,255,0.96); padding:8px; border-radius:6px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; z-index:1000; }
     input[type=text] { padding:6px; }
     .grow { flex:1; min-width:200px; }
     button { padding:6px 10px; }
@@ -28,11 +28,7 @@
 
     <div style="display:flex;gap:8px;align-items:center;width:100%;">
       <button id="loadManifestBtn">Läs kml/list.json</button>
-      <span class="small">— Eller hämta direkt från GitHub repo:</span>
-      <input id="ghOwner" type="text" placeholder="owner" style="width:100px" />
-      <input id="ghRepo" type="text" placeholder="repo" style="width:120px" />
-      <input id="ghBranch" type="text" placeholder="branch (valfritt)" style="width:100px" />
-      <button id="loadFromGhBtn">Hämta från GitHub</button>
+      <span class="small">— Använd manifestet i /kml för att ladda flera filer</span>
     </div>
 
     <div style="width:100%;display:flex;gap:8px;align-items:center;">
@@ -173,30 +169,6 @@
       } catch (err) {
         console.error(err);
         setStatus('Fel vid manifest: ' + err.message, true);
-      }
-    });
-
-    document.getElementById('loadFromGhBtn').addEventListener('click', async () => {
-      const owner = document.getElementById('ghOwner').value.trim();
-      const repo = document.getElementById('ghRepo').value.trim();
-      const branch = document.getElementById('ghBranch').value.trim();
-      if (!owner || !repo) { setStatus('Fyll i owner och repo', true); return; }
-      const apiUrl = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/kml` + (branch ? `?ref=${encodeURIComponent(branch)}` : '');
-      setStatus('Kontaktar GitHub API...');
-      try {
-        const res = await fetch(apiUrl);
-        if (!res.ok) throw new Error('GitHub API HTTP ' + res.status);
-        const entries = await res.json();
-        if (!Array.isArray(entries)) throw new Error('Innehåll ej en lista');
-        for (const e of entries) {
-          if (e.type === 'file' && e.name.toLowerCase().endsWith('.kml')) {
-            await loadKml(e.download_url, 'default', e.name);
-          }
-        }
-        setStatus('Filer från GitHub laddade.');
-      } catch (err) {
-        console.error(err);
-        setStatus('Fel GitHub: ' + err.message, true);
       }
     });
 
