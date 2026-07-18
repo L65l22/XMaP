@@ -182,26 +182,10 @@
           const label = document.createElement('label');
           label.textContent = (m.name || m.url) + ' — ' + m.category + ' (' + (m.featureCount ?? '?') + ')';
 
-          const zoomBtn = document.createElement('button');
-          zoomBtn.className = 'small-btn';
-          zoomBtn.textContent = 'Zoom';
-          zoomBtn.addEventListener('click', () => {
-            try { const b = m.layer.getBounds && m.layer.getBounds(); if (b && (b.isValid ? b.isValid() : b._southWest)) map.fitBounds(b, { maxZoom: 14 }); } catch (e) {}
-          });
-
-          const soloBtn = document.createElement('button');
-          soloBtn.className = 'small-btn';
-          soloBtn.textContent = 'Ensam';
-          soloBtn.title = 'Visa endast denna fil';
-          soloBtn.addEventListener('click', () => {
-            mapsMeta.forEach(mm => { if (mm === m) map.addLayer(mm.layer); else map.removeLayer(mm.layer); });
-            renderLayersList();
-          });
+          // note: Zoom and Solo buttons removed as requested
 
           row.appendChild(cb);
           row.appendChild(label);
-          row.appendChild(zoomBtn);
-          row.appendChild(soloBtn);
           layersListEl.appendChild(row);
         });
       }
