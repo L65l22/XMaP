@@ -6,30 +6,68 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
+    /* Full-screen map + mobile-friendly UI */
     html,body { height:100%; margin:0; font-family: -apple-system, Roboto, "Segoe UI", Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
     #map { position:fixed; inset:0; }
+    /* Floating layer button */
     .fab {
-      position: fixed; right: 14px; bottom: 18px; width: 56px; height: 56px; border-radius: 28px;
-      background: #1976d2; color: white; display:flex; align-items:center; justify-content:center;
-      box-shadow: 0 6px 14px rgba(0,0,0,0.24); z-index: 1400; font-size: 22px; touch-action: manipulation;
+      position: fixed;
+      right: 14px;
+      bottom: 18px;
+      width: 56px;
+      height: 56px;
+      border-radius: 28px;
+      background: #1976d2;
+      color: white;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.24);
+      z-index: 1400;
+      font-size: 22px;
+      touch-action: manipulation;
     }
     .fab:active { transform: translateY(1px); }
+    /* Bottom sheet for layers */
     .sheet {
-      position: fixed; left: 8px; right: 8px; bottom: 84px; max-height: 56%;
-      background: rgba(255,255,255,0.98); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-      padding: 10px; overflow:auto; z-index: 1390; transform: translateY(20px);
-      transition: transform 200ms ease, opacity 200ms ease; opacity: 0; pointer-events: none;
+      position: fixed;
+      left: 8px;
+      right: 8px;
+      bottom: 84px;
+      max-height: 56%;
+      background: rgba(255,255,255,0.98);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      padding: 10px;
+      overflow:auto;
+      z-index: 1390;
+      transform: translateY(20px);
+      transition: transform 200ms ease, opacity 200ms ease;
+      opacity: 0;
+      pointer-events: none;
     }
     .sheet.open { transform: translateY(0); opacity: 1; pointer-events: auto; }
     .sheet h3 { margin:0 0 8px 0; font-size:1rem; }
     .layer-row { display:flex; align-items:center; gap:8px; padding:8px 4px; border-bottom:1px solid #eee; }
     .layer-row label { flex:1; font-size:0.95rem; }
+    /* Small status bubble top */
     .status {
-      position: fixed; left: 12px; top: 12px; background: rgba(0,0,0,0.6); color: white; padding:6px 10px;
-      border-radius:10px; font-size:0.85rem; z-index:1400; max-width: calc(100% - 120px); overflow: hidden;
-      text-overflow: ellipsis; white-space: nowrap;
+      position: fixed;
+      left: 12px;
+      top: 12px;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding:6px 10px;
+      border-radius:10px;
+      font-size:0.85rem;
+      z-index:1400;
+      max-width: calc(100% - 120px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     @media (min-width: 780px) {
+      /* Desktop: move sheet to right */
       .sheet { right: 12px; left: auto; bottom: 12px; width: 320px; max-height: 60%; border-radius:8px; }
       .fab { right: 340px; bottom: 18px; }
     }
@@ -45,7 +83,8 @@
   <div id="layersSheet" class="sheet" role="dialog" aria-hidden="true">
     <h3>Layer controls</h3>
     <div id="layersList">
-      <div style="color:#666;font-size:0.9rem;padding:8px 4px;">Inga lager inlästa. Vänta medan automatiska laddningen försöker hämta .kml från repo (om aktiverat).</div>
+      <!-- Populated dynamically; show categories and toggles -->
+      <div style="color:#666;font-size:0.9rem;padding:8px 4px;">Inga lager inlästa. Lägg till .kml genom att redigera initialFiles i index.html.</div>
     </div>
   </div>
 
@@ -53,22 +92,14 @@
   <script src="./vendor/togeojson.min.js"></script>
 
   <script>
-    // ---- Konfiguration för GitHub-auto-load ----
-    // Om du vill ange repo manuellt, fyll i owner/repo/branch här.
-    // Om owner eller repo lämnas tomma försöker skriptet autodetektera från URL (owner.github.io/repo).
-    const githubAuto = {
-      enabled: true,         // sätt false för att inaktivera automatisk GitHub-laddning
-      owner: '',             // ex. 'l65l22'  (lämna tomt för autodetektion)
-      repo: '',              // ex. 'XMaP'   (lämna tomt för autodetektion)
-      branch: 'main',        // valfri (t.ex. 'main' eller 'gh-pages')
-      // token: 'ghp_xxx'    // INTE REKOMMENDERAT: om ditt repo är privat behöver du auth, men undvik lägga token i klientkod
-    };
-    // --------------------------------------------
+    // initialFiles: redigera här för att ladda .kml automatiskt (ingen UI för att lägga till)
+    // Exempel: const initialFiles = [{ file: './kml/map1.kml', category: 'ArcticGym', name: 'Map 1' }];
+    const initialFiles = []; // <-- tom som default (ingen automatisk hämtning)
 
     const map = L.map('map', { zoomControl: true, tap: true }).setView([59.33, 18.06], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
 
-    const categories = {};
+    const categories = {}; // name -> L.LayerGroup
     const mapsMeta = [];
 
     const statusEl = document.getElementById('status');
@@ -88,7 +119,9 @@
 
     function ensureCategory(name) {
       if (!name) name = 'default';
-      if (!categories[name]) categories[name] = L.layerGroup().addTo(map);
+      if (!categories[name]) {
+        categories[name] = L.layerGroup().addTo(map);
+      }
       return categories[name];
     }
 
@@ -96,7 +129,7 @@
       layersListEl.innerHTML = '';
       const names = Object.keys(categories);
       if (!names.length) {
-        layersListEl.innerHTML = '<div style="color:#666;font-size:0.9rem;padding:8px 4px;">Inga lager inlästa.</div>';
+        layersListEl.innerHTML = '<div style="color:#666;font-size:0.9rem;padding:8px 4px;">Inga lager inlästa. Redigera initialFiles om du vill ladda .kml automatiskt.</div>';
         return;
       }
       names.forEach(name => {
@@ -113,6 +146,7 @@
         layersListEl.appendChild(row);
       });
 
+      // list loaded maps
       const hr = document.createElement('div');
       hr.style.padding = '8px 4px';
       hr.style.fontSize = '0.9rem';
@@ -128,8 +162,8 @@
       });
     }
 
-    async function fetchText(url, opts) {
-      const res = await fetch(url, opts);
+    async function fetchText(url) {
+      const res = await fetch(url);
       if (!res.ok) throw new Error('HTTP ' + res.status + ' för ' + url);
       return await res.text();
     }
@@ -176,84 +210,6 @@
       }
     }
 
-    // GitHub: hämta listning av /kml i repo och ladda alla .kml (download_url)
-    async function loadAllKmlFromGitHub(owner, repo, branch, token) {
-      if (!owner || !repo) throw new Error('owner eller repo saknas');
-      const apiUrl = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/kml` + (branch ? `?ref=${encodeURIComponent(branch)}` : '');
-      showStatus('Hämtar fil-lista från GitHub...', 4000);
-      const headers = {};
-      if (token) headers['Authorization'] = 'token ' + token;
-      let res;
-      try {
-        res = await fetch(apiUrl, { headers });
-      } catch (e) {
-        throw new Error('Nätverksfel mot GitHub API: ' + e.message);
-      }
-      if (!res.ok) {
-        if (res.status === 404) throw new Error('Katalogen /kml hittades inte i repo');
-        throw new Error('GitHub API HTTP ' + res.status);
-      }
-      const entries = await res.json();
-      if (!Array.isArray(entries)) throw new Error('GitHub svarade med oväntat format');
-      // filtrera .kml-filer och ladda dem
-      const kmlFiles = entries.filter(e => e.type === 'file' && e.name.toLowerCase().endsWith('.kml'));
-      if (!kmlFiles.length) { showStatus('Inga .kml i /kml', 5000); return; }
-      showStatus('Laddar ' + kmlFiles.length + ' KML-filer...', 4000);
-      for (const f of kmlFiles) {
-        try {
-          await loadKml(f.download_url, 'default', f.name);
-        } catch (err) {
-          console.warn('Misslyckades ladda', f.name, err);
-        }
-      }
-      showStatus('Alla tillgängliga KML-filer är inlästa.', 3000);
-    }
-
-    // Autodetektera owner/repo från Pages-URL (owner.github.io/repo)
-    function detectOwnerRepoFromLocation() {
-      try {
-        const host = window.location.hostname; // e.g. l65l22.github.io
-        const path = window.location.pathname; // e.g. /XMaP/...
-        if (!host.endsWith('.github.io')) return null;
-        const owner = host.split('.')[0];
-        const parts = path.split('/').filter(Boolean);
-        const repo = parts.length ? parts[0] : null;
-        if (!owner || !repo) return null;
-        return { owner, repo };
-      } catch (e) { return null; }
-    }
-
-    // Try auto-loading from GitHub if enabled
-    (async () => {
-      if (!githubAuto.enabled) { showStatus('Automatisk GitHub-laddning inaktiverad'); return; }
-
-      let owner = githubAuto.owner || null;
-      let repo = githubAuto.repo || null;
-      const branch = githubAuto.branch || undefined;
-      const token = githubAuto.token || undefined;
-
-      if (!owner || !repo) {
-        const det = detectOwnerRepoFromLocation();
-        if (det) {
-          owner = owner || det.owner;
-          repo = repo || det.repo;
-          console.log('Autodetekterat owner/repo:', owner, repo);
-        }
-      }
-
-      if (!owner || !repo) {
-        showStatus('Automatisk GitHub-laddning: owner/repo ej angivet och kunde ej upptäckas.', 8000);
-        return;
-      }
-
-      try {
-        await loadAllKmlFromGitHub(owner, repo, branch, token);
-      } catch (err) {
-        console.error(err);
-        showStatus('GitHub-auto fel: ' + err.message, 8000);
-      }
-    })();
-
     // Layers button toggles the sheet
     layersBtn.addEventListener('click', () => {
       const open = layersSheet.classList.toggle('open');
@@ -261,7 +217,7 @@
       if (open) renderLayersList();
     });
 
-    // Close sheet on map click
+    // Close sheet on map click (mobile-friendly)
     map.on('click', () => {
       if (layersSheet.classList.contains('open')) {
         layersSheet.classList.remove('open');
@@ -269,7 +225,16 @@
       }
     });
 
-    // Expose lightweight API for programmatic adding
+    // Load any initialFiles defined in the script (code-based, not via UI)
+    (async () => {
+      if (!initialFiles || !initialFiles.length) return;
+      for (const f of initialFiles) {
+        // expect f.file to be a path (e.g. './kml/map1.kml') and optional category/name
+        await loadKml(f.file, f.category || 'default', f.name || f.file);
+      }
+    })();
+
+    // Expose a lightweight API for programmatic adding (if you want to call from console)
     window.AppKml = {
       load: (url, category, name) => loadKml(url, category, name),
       listLayers: () => Object.keys(categories),
