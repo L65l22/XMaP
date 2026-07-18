@@ -32,16 +32,26 @@
     }
     .fab:active { transform: translateX(-50%) translateY(1px); }
 
-    /* liten share-knapp ovanför huvudknappen */
-    .small-fab {
-      width:44px;
-      height:44px;
-      border-radius:22px;
-      font-size:18px;
-      bottom: 86px; /* flytta upp så den inte överlappar huvudknappen */
-      background:#e53935; /* röd */
-      box-shadow: 0 6px 12px rgba(0,0,0,0.18);
+    /* share-knapp: placera uppe till höger */
+    .share-btn {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      background: #e53935;
+      color: white;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.24);
+      z-index: 1500;
+      font-size: 18px;
+      border: none;
+      padding: 0;
     }
+    .share-btn:active { transform: translateY(1px); }
 
     /* Panel (bottom sheet) */
     .sheet {
@@ -77,7 +87,7 @@
       .fab { width:68px; height:68px; border-radius:34px; font-size:26px; bottom:28px; }
       .sheet { bottom:106px; left: 12px; right: 12px; padding:12px; border-radius:14px; }
       .small-btn { padding:8px 10px; font-size:0.95rem; }
-      .small-fab { width:54px; height:54px; border-radius:27px; bottom:106px; font-size:20px; }
+      .share-btn { width:54px; height:54px; border-radius:10px; font-size:20px; top:16px; right:16px; }
     }
     @media (min-device-width: 360px) and (min-resolution: 2dppx) {
       .fab { width:72px; height:72px; border-radius:36px; font-size:28px; bottom:30px; }
@@ -93,8 +103,8 @@
 
   <div class="status" id="status" aria-live="polite" style="display:none;"></div>
 
-  <!-- share-knapp ovanför huvudmenyknapp -->
-  <button id="sharePosBtn" class="fab small-fab" title="Dela min plats">📍</button>
+  <!-- share-knapp uppe till höger -->
+  <button id="sharePosBtn" class="share-btn" title="Dela min plats">📍</button>
   <button id="layersBtn" class="fab" aria-label="Layers">☰</button>
 
   <div id="layersSheet" class="sheet" role="dialog" aria-hidden="true">
@@ -125,9 +135,7 @@
       return base.replace(/\.kml$/i, '');
     }
 
-    function normalizeCategoryKey(name) { return String(name || '').trim().toLowerCase(); }
-
-    // Uppdaterar style rekursivt för ett layer (GeoJSON, CircleMarker eller Group)
+    // Rekursiv style-uppdaterare (används för ev. framtida ändringar)
     function updateLayerStyle(layer, color) {
       try {
         if (!layer) return;
