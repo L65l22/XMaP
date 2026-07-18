@@ -47,8 +47,8 @@
   <div id="debug"><strong>Debug log</strong><div id="debugContent"></div></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Bytt CDN för togeojson till jsDelivr (rätt MIME) -->
-  <script src="https://cdn.jsdelivr.net/npm/togeojson@0.16.0/dist/togeojson.min.js"></script>
+  <!-- Lokal togeojson -->
+  <script src="./vendor/togeojson.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
   <script>
@@ -59,13 +59,12 @@
         if (dbg) {
           const d = document.createElement('div');
           d.className = 'debug-row error';
-          d.textContent = 'FEL: toGeoJSON biblioteket laddades inte (ingen conversion möjligt). Om du ser detta: testa att rensa cache eller ladda om sidan. Kontrollera att CDN (jsDelivr) nås.';
+          d.textContent = 'FEL: toGeoJSON biblioteket laddades inte (ingen conversion möjlig). Kontrollera att vendor/togeojson.min.js finns och serveras korrekt.';
           dbg.prepend(d);
         }
         console.error('toGeoJSON saknas: KML/KMZ-konvertering kommer att misslyckas.');
       }
       if (typeof toGeoJSON === 'undefined') {
-        // vänta en stund — möjligt att scriptet laddas asynkront, men vi använder synkron inkludering så detta är troligt blockeringsfall
         setTimeout(()=>{ if (typeof toGeoJSON === 'undefined') showMissingLib(); }, 500);
       }
     })();
