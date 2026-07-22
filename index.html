@@ -32,11 +32,11 @@
     }
     .fab:active { transform: translateX(-50%) translateY(1px); }
 
-    /* drop-knapp: placera uppe till vänster (grön) */
+    /* drop-knapp: placera uppe till höger, bredvid share-knappen (grön) */
     .drop-btn {
       position: fixed;
       top: 12px;
-      left: 12px;
+      right: 68px; /* sits left of the share button */
       width: 44px;
       height: 44px;
       border-radius: 8px;
@@ -80,6 +80,30 @@
     }
     .share-btn:active { transform: translateY(1px); }
 
+    /* Simple green pin styling for divIcon */
+    .drop-pin {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #4caf50;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+      position: relative;
+      margin: 0 auto;
+    }
+    .drop-pin::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: -8px;
+      width: 0;
+      height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid #4caf50;
+    }
+
     /* Panel (bottom sheet) */
     .sheet {
       position: fixed;
@@ -115,7 +139,7 @@
       .sheet { bottom:106px; left: 12px; right: 12px; padding:12px; border-radius:14px; }
       .small-btn { padding:8px 10px; font-size:0.95rem; }
       .drop-btn, .share-btn { width:54px; height:54px; border-radius:10px; font-size:20px; top:16px; }
-      .drop-btn { left:16px; }
+      .drop-btn { right: 84px; } /* spacing adjust on larger screens */
       .share-btn { right:16px; }
     }
     @media (min-device-width: 360px) and (min-resolution: 2dppx) {
@@ -132,7 +156,7 @@
 
   <div class="status" id="status" aria-live="polite" style="display:none;"></div>
 
-  <!-- drop-knapp uppe till vänster -->
+  <!-- drop-knapp uppe till höger (bredvid share) -->
   <button id="dropPinBtn" class="drop-btn" title="Placera nål">📌</button>
   <!-- share-knapp uppe till höger -->
   <button id="sharePosBtn" class="share-btn" title="Dela min plats">📍</button>
@@ -210,7 +234,7 @@
       // Säkerställ positioner
       dropPinBtn.style.position = 'fixed';
       dropPinBtn.style.top = '12px';
-      dropPinBtn.style.left = '12px';
+      dropPinBtn.style.right = '68px';
       sharePosBtn.style.position = 'fixed';
       sharePosBtn.style.top = '12px';
       sharePosBtn.style.right = '12px';
@@ -479,18 +503,37 @@
     }
 
     // ---------------------------
-    // DROP PIN: place a green marker on click and share
+    // DROP PIN: place a draggable green marker on click and share; marker is draggable and updates link on dragend
     // ---------------------------
     let _dropMarker = null;
     let _placingDrop = false;
 
-    function placeDropMarker(lat, lng) {
+    // reusable divIcon for green pin
+    const dropIcon = L.divIcon({
+      html: '<div class="drop-pin"></div>',
+      className: '', // avoid default classes
+      iconSize: [18, 26], // width, height (includes tail)
+      iconAnchor: [9, 26]  // anchor at bottom center
+    });
+
+    function placeDropMarker(lat, lng, shareAfter = false) {
       if (!_dropMarker) {
-        _dropMarker = L.circleMarker([lat, lng], {
-          radius:8, color:'#fff', weight:2, fillColor:'#4caf50', fillOpacity:0.95
-        }).addTo(map);
+        _dropMarker = L.marker([lat, lng], { icon: dropIcon, draggable: true }).addTo(map);
+        _dropMarker.on('dragend', function (ev) {
+          const p = ev.target.getLatLng();
+          const url = createShareUrl(p.lat, p.lng, map.getZoom(), 'drop');
+          copyToClipboard(url);
+          showStatus('Nål flyttad — länk uppdaterad och kopierad', 3000);
+          console.log('Dela denna länk:', url);
+        });
       } else {
         _dropMarker.setLatLng([lat, lng]);
+      }
+      if (shareAfter) {
+        const url = createShareUrl(lat, lng, map.getZoom(), 'drop');
+        copyToClipboard(url);
+        showStatus('Nål placerad och länk kopierad', 3500);
+        console.log('Dela denna länk:', url);
       }
     }
 
@@ -502,34 +545,26 @@
       _placingDrop = true;
       showStatus('Klicka på kartan för att placera en grön nål', 5000);
       map.getContainer().style.cursor = 'crosshair';
-      // one-shot click
       map.once('click', (e) => {
         try {
           const lat = e.latlng.lat;
           const lng = e.latlng.lng;
-          placeDropMarker(lat, lng);
-          // optionally center
+          placeDropMarker(lat, lng, true);
           map.setView([lat, lng], Math.max(map.getZoom(), 14));
-          // create url with type=drop
-          const url = createShareUrl(lat, lng, map.getZoom(), 'drop');
-          copyToClipboard(url);
-          showStatus('Nål placerad och länk kopierad', 3500);
-          console.log('Dela denna länk:', url);
         } finally {
           _placingDrop = false;
           map.getContainer().style.cursor = '';
         }
       });
 
-      // if user clicks elsewhere or wants to cancel, they can click the drop button again to cancel
-      // optional: set a timeout to cancel placement after some time
+      // timeout to cancel placement
       setTimeout(() => {
         if (_placingDrop) {
           _placingDrop = false;
           map.getContainer().style.cursor = '';
           showStatus('Placeringsläge avbrutet', 2000);
         }
-      }, 60000); // 60s timeout
+      }, 60000); // 60s
     }
 
     // Restore marker from URL (?loc=lat,lng&z=zoom&t=drop|gps)
@@ -546,7 +581,7 @@
           if (!isNaN(lat) && !isNaN(lng)) {
             const zoom = z ? parseInt(z,10) : map.getZoom();
             if (t === 'drop') {
-              placeDropMarker(lat, lng);
+              placeDropMarker(lat, lng, false);
             } else {
               // default / 'gps'
               placeShareMarker(lat, lng);
@@ -600,7 +635,7 @@
     // Share button handler (GPS)
     sharePosBtn.addEventListener('click', markAndShareCurrentLocation);
 
-    // Drop-pin button handler
+    // Drop-pin button handler (start place mode)
     dropPinBtn.addEventListener('click', startPlacingDropPin);
 
     // Close sheet on map click
@@ -618,7 +653,8 @@
       startLocation: startLocationTracking,
       stopLocation: stopLocationTracking,
       shareNow: markAndShareCurrentLocation,
-      dropPinMode: startPlacingDropPin
+      dropPinMode: startPlacingDropPin,
+      placeDropMarker // expose for console/testing
     };
   </script>
 </body>
