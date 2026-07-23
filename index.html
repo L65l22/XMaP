@@ -6,11 +6,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    /* Grundlayout */
-    html,body { height:100%; margin:0; font-family: -apple-system, Roboto, "Segoe UI", Arial, sans-serif; -webkit-tap-highlight-color: transparent; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+    html,body { height:100%; margin:0; font-family: -apple-system, Roboto, "Segoe UI", Arial, sans-serif; -webkit-tap-highlight-color: transparent; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing: grayscale; }
     #map { position:fixed; inset:0; width:100vw; height:100vh; }
 
-    /* Fab (menyknapp) - centrerad längst ner */
     .fab {
       position: fixed;
       left: 50%;
@@ -29,10 +27,10 @@
       font-size: 22px;
       touch-action: manipulation;
       border: none;
+      cursor: pointer;
     }
     .fab:active { transform: translateX(-50%) translateY(1px); }
 
-    /* share-knapp: uppe till höger */
     .share-btn {
       position: fixed;
       top: 12px;
@@ -51,16 +49,39 @@
       border: none;
       padding: 0;
       visibility: visible !important;
+      cursor: pointer;
+      touch-action: manipulation;
     }
     .share-btn:active { transform: translateY(1px); }
 
-    /* Grön kartnålsknapp bredvid röda */
     .green-pin-btn {
       right: 62px;
       background: #2e7d32;
     }
 
-    /* Panel (bottom sheet) */
+    .drop-pin {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #2e7d32;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+      position: relative;
+      margin: 0 auto;
+    }
+    .drop-pin::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: -8px;
+      width: 0;
+      height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid #2e7d32;
+    }
+
     .sheet {
       position: fixed;
       left: 8px;
@@ -99,15 +120,14 @@
       white-space: nowrap;
     }
 
-    .small-btn { background: #eee; border: none; padding:6px 8px; border-radius:6px; font-size:0.85rem; }
+    .small-btn { background: #eee; border: none; padding:6px 8px; border-radius:6px; font-size:0.85rem; cursor: pointer; }
 
-    /* Anpassningar för större/high-DPI skärmar */
     @media (min-width: 1024px) and (min-height: 600px) {
       .fab { width:68px; height:68px; border-radius:34px; font-size:26px; bottom:28px; }
       .sheet { bottom:106px; left: 12px; right: 12px; padding:12px; border-radius:14px; }
       .small-btn { padding:8px 10px; font-size:0.95rem; }
       .share-btn { width:54px; height:54px; border-radius:10px; font-size:20px; top:16px; right:16px; }
-      .green-pin-btn { right: 82px; } /* 16 + 54 + 12 spacing */
+      .green-pin-btn { right: 82px; }
     }
     @media (min-device-width: 360px) and (min-resolution: 2dppx) {
       .fab { width:72px; height:72px; border-radius:36px; font-size:28px; bottom:30px; }
@@ -123,9 +143,7 @@
 
   <div class="status" id="status" aria-live="polite" style="display:none;"></div>
 
-  <!-- Röd: dela min GPS-plats -->
   <button id="sharePosBtn" class="share-btn" title="Dela min plats">📍</button>
-  <!-- Grön: manuell flyttbar nål -->
   <button id="pinShareBtn" class="share-btn green-pin-btn" title="Placera/flytta och dela grön nål">📌</button>
 
   <button id="layersBtn" class="fab" aria-label="Layers">☰</button>
@@ -141,7 +159,6 @@
   <script src="./vendor/togeojson.min.js"></script>
 
   <script>
-    // ---- Konfiguration för GitHub-auto-load ----
     const githubAuto = {
       enabled: true,
       owner: '',
@@ -157,61 +174,16 @@
       return base.replace(/\.kml$/i, '');
     }
 
-    function updateLayerStyle(layer, color) {
-      try {
-        if (!layer) return;
-        if (typeof layer.setStyle === 'function') {
-          layer.setStyle({ color: color, fillColor: color });
-        } else if (layer instanceof L.CircleMarker) {
-          layer.setStyle({ color: color, fillColor: color });
-        } else if (typeof layer.eachLayer === 'function') {
-          layer.eachLayer(function (l) { updateLayerStyle(l, color); });
-        } else if (layer.getLayers) {
-          layer.getLayers().forEach(function (l) { updateLayerStyle(l, color); });
-        }
-      } catch (e) { console.warn('Could not update style for a layer', e); }
-    }
-
     const map = L.map('map', { zoomControl: true, tap: true }).setView([59.33, 18.06], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
 
-    const mapsMeta = []; // { url, name, layer, featureCount }
-
+    const mapsMeta = [];
     const statusEl = document.getElementById('status');
     const layersBtn = document.getElementById('layersBtn');
     const layersSheet = document.getElementById('layersSheet');
     const layersListEl = document.getElementById('layersList');
     const sharePosBtn = document.getElementById('sharePosBtn');
     const pinShareBtn = document.getElementById('pinShareBtn');
-
-    // Säkerställ att båda topp-knapparna syns över kartan
-    (function ensureTopButtonsVisible(){
-      const red = sharePosBtn || document.getElementById('sharePosBtn');
-      const green = pinShareBtn || document.getElementById('pinShareBtn');
-      [red, green].forEach((btn) => {
-        if (!btn) return;
-        document.body.appendChild(btn);
-        btn.style.display = 'flex';
-        btn.style.visibility = 'visible';
-        btn.style.zIndex = '99999';
-        btn.style.position = 'fixed';
-        btn.style.top = '12px';
-        btn.style.width = '44px';
-        btn.style.height = '44px';
-        btn.style.borderRadius = '8px';
-        btn.style.color = '#fff';
-        btn.style.border = 'none';
-        btn.style.padding = '0';
-      });
-      if (red) {
-        red.style.right = '12px';
-        red.style.background = '#e53935';
-      }
-      if (green) {
-        green.style.right = '62px';
-        green.style.background = '#2e7d32';
-      }
-    })();
 
     function showStatus(msg, timeout = 3000) {
       if (!msg) { statusEl.style.display = 'none'; return; }
@@ -361,9 +333,6 @@
       } catch (e) { return null; }
     }
 
-    // ---------------------------
-    // GEOLOCATION: auto-start
-    // ---------------------------
     let _watchId = null;
     let _userMarker = null;
     let _accuracyCircle = null;
@@ -429,9 +398,6 @@
       _firstFix = true;
     }
 
-    // ---------------------------
-    // SHARE CURRENT GPS LOCATION
-    // ---------------------------
     let _shareMarker = null;
 
     function createShareUrl(lat, lng, zoom) {
@@ -479,12 +445,16 @@
       }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     }
 
-    // ---------------------------
-    // GREEN MANUAL PIN (movable + share)
-    // ---------------------------
+    // GREEN MANUAL PIN: auto-copy on dragend
     let _manualPin = null;
     let _manualPinLatLng = null;
-    let _draggingPin = false;
+
+    const manualPinIcon = L.divIcon({
+      html: '<div class="drop-pin"></div>',
+      className: '',
+      iconSize: [18, 26],
+      iconAnchor: [9, 26],
+    });
 
     function createDraggableManualPin(lat, lng) {
       if (_manualPin) {
@@ -493,37 +463,23 @@
         return _manualPin;
       }
 
-      _manualPin = L.circleMarker([lat, lng], {
-        radius: 9,
-        color: '#ffffff',
-        weight: 2,
-        fillColor: '#2e7d32',
-        fillOpacity: 0.98
+      _manualPin = L.marker([lat, lng], {
+        icon: manualPinIcon,
+        draggable: true
       }).addTo(map);
 
       _manualPinLatLng = { lat, lng };
 
-      _manualPin.on('mousedown touchstart', function (e) {
-        _draggingPin = true;
-        map.dragging.disable();
-        if (e.originalEvent) e.originalEvent.preventDefault();
-      });
-
-      map.on('mousemove touchmove', function (e) {
-        if (!_draggingPin || !_manualPin) return;
-        const ll = e.latlng;
-        _manualPin.setLatLng(ll);
+      _manualPin.on('dragend', async function (e) {
+        const ll = e.target.getLatLng();
         _manualPinLatLng = { lat: ll.lat, lng: ll.lng };
+
+        const zoom = map.getZoom() || 14;
+        const url = createManualPinShareUrl(ll.lat, ll.lng, zoom);
+
+        await copyToClipboard(url);
+        showStatus('Grön nål flyttad — länk kopierad', 2500);
       });
-
-      function stopDrag() {
-        if (!_draggingPin) return;
-        _draggingPin = false;
-        map.dragging.enable();
-      }
-
-      map.on('mouseup touchend', stopDrag);
-      map.on('mouseout', stopDrag);
 
       return _manualPin;
     }
@@ -535,21 +491,20 @@
 
     async function placeAndShareManualPin() {
       if (_manualPinLatLng) {
-        const zoom = map.getZoom() || 14;
-        const url = createManualPinShareUrl(_manualPinLatLng.lat, _manualPinLatLng.lng, zoom);
-        await copyToClipboard(url);
-        showStatus('Delningslänk för grön nål kopierad', 3500);
+        showStatus('Dra nålen för att kopiera ny länk automatiskt', 2500);
         return;
       }
 
       const center = map.getCenter();
       createDraggableManualPin(center.lat, center.lng);
-      showStatus('Grön nål placerad. Dra den till rätt plats och tryck igen för att dela.', 4500);
+
+      const zoom = map.getZoom() || 14;
+      const firstUrl = createManualPinShareUrl(center.lat, center.lng, zoom);
+      await copyToClipboard(firstUrl);
+
+      showStatus('Grön nål placerad — dra den så kopieras länken automatiskt', 4000);
     }
 
-    // Restore marker from URL:
-    // ?loc=lat,lng&z=zoom   (röd)
-    // ?pin=lat,lng&z=zoom   (grön)
     function restoreFromUrl() {
       try {
         const params = new URLSearchParams(window.location.search);
@@ -579,12 +534,9 @@
             map.setView([lat, lng], isNaN(zoom) ? 14 : zoom);
           }
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) {}
     }
 
-    // ---------------------------
-    // Init
-    // ---------------------------
     (async () => {
       if (!githubAuto.enabled) { showStatus('Automatisk GitHub-laddning inaktiverad'); }
       else {
@@ -612,7 +564,6 @@
       catch (e) { console.warn('Kunde inte starta geolocation automatiskt', e); }
     })();
 
-    // UI events
     layersBtn.addEventListener('click', () => {
       const open = layersSheet.classList.toggle('open');
       layersSheet.setAttribute('aria-hidden', (!open).toString());
@@ -629,7 +580,6 @@
       }
     });
 
-    // API for console use
     window.AppKml = {
       load: (url, name) => loadKml(url, null, name),
       listFiles: () => mapsMeta.map(m => ({ name: filenameWithoutExt(m.name || m.url), url: m.url, count: m.featureCount })),
